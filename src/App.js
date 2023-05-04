@@ -84,7 +84,11 @@ function App() {
       ) : null}
       <main className="main">
         <CategoryFilter setCurrentCategory={setCurrentCategory} />
-        {isLoading ? <Loader /> : <FactList facts={facts} />}
+        {isLoading ? (
+          <Loader />
+        ) : (
+          <FactList setFacts={setFacts} facts={facts} />
+        )}
       </main>
     </>
   );
@@ -154,7 +158,7 @@ function NewFactForm({ setFacts, setShowForm }) {
       setIsUploading(false);
       console.log(newFact);
       //4.Add the new fact to the UI: add the fact to the state
-      setFacts((facts) => [newFact[0], ...facts]);
+      if (!error) setFacts((facts) => [newFact[0], ...facts]);
       //5. Reset the input fild
       setText("");
       setSource("");
@@ -232,7 +236,7 @@ function CategoryFilter({ setCurrentCategory }) {
     </aside>
   );
 }
-function FactList({ facts }) {
+function FactList({ facts, setFacts }) {
   if (facts.length == 0) {
     return (
       <p className="message">
@@ -244,7 +248,7 @@ function FactList({ facts }) {
     <section>
       <ul className="facts-list">
         {facts.map((fact) => (
-          <Fact key={fact.id} factObj={fact} />
+          <Fact key={fact.id} factObj={fact} setFacts={setFacts} />
         ))}
       </ul>
       <p>There are {facts.length} facts in the database. Add your own!</p>
@@ -252,11 +256,30 @@ function FactList({ facts }) {
   );
 }
 
-function Fact({ factObj: fact }) {
+function Fact({ factObj: fact, setFacts }) {
+  const [isUpdating, setIsUpdating] = useState(false);
+  const isDisputed =
+    fact.voteInteresting + fact.voteMindBlowing < fact.voteFalse;
+  async function handleVote(columnName) {
+    setIsUpdating(true);
+    const { data: updatedFact, error } = await supabase
+      .from("facts")
+      .update({ [columnName]: fact[columnName] + 1 })
+      .eq("id", fact.id)
+      .select();
+
+    setIsUpdating(false);
+    if (!error)
+      setFacts((facts) =>
+        facts.map((f) => (f.id === fact.id ? updatedFact[0] : f))
+      );
+    console.log(updatedFact);
+  }
   // const { factObj: fact } = props;
   return (
     <li className="fact">
       <p>
+        {isDisputed ? <span className="disputed">[DISPUTED]</span> : null}
         {fact.text}
         <a className="source" href={fact.source} target="_blank">
           (Source)
@@ -272,9 +295,21 @@ function Fact({ factObj: fact }) {
         {fact.category}
       </span>
       <div className="vote-buttons">
-        <button>👍 {fact.voteInteresting}</button>
-        <button>🤯 {fact.voteMindBlowing}</button>
-        <button>⛔️ {fact.voteFalse} </button>
+        <button
+          onClick={() => handleVote("voteInteresting")}
+          disabled={isUpdating}
+        >
+          👍 {fact.voteInteresting}
+        </button>
+        <button
+          onClick={() => handleVote("voteMindBlowing")}
+          disabled={isUpdating}
+        >
+          🤯 {fact.voteMindBlowing}
+        </button>
+        <button onClick={() => handleVote("voteFalse")} disabled={isUpdating}>
+          ⛔️ {fact.voteFalse}
+        </button>
       </div>
     </li>
   );
